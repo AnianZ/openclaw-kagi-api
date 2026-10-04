@@ -2,7 +2,7 @@
   "id": "kagi-api",
   "name": "Kagi Search API",
   "description": "Web search through Kagi's official Search API",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "categories": [
     "web"
   ],
@@ -25,4 +25,3 @@
     "additionalProperties": false
   }
 }
-
