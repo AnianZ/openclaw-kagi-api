@@ -1,0 +1,28 @@
+{
+  "id": "kagi-api",
+  "name": "Kagi Search API",
+  "description": "Web search through Kagi's official Search API",
+  "version": "1.0.0",
+  "categories": [
+    "web"
+  ],
+  "contracts": {
+    "webSearchProviders": [
+      "kagi-api"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "webSearch": {
+        "type": "object",
+        "properties": {
+          "apiKey": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}
+
