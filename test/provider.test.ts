@@ -17,6 +17,7 @@ describe("Kagi web-search provider", () => {
     const provider = createKagiWebSearchProvider();
 
     expect(provider.id).toBe("kagi-api");
+    expect(provider.onboardingScopes).toEqual(["text-inference"]);
     expect(provider.envVars).toEqual(["KAGI_API_KEY"]);
     expect(provider.credentialPath).toBe(
       "plugins.entries.kagi-api.config.webSearch.apiKey",

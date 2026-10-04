@@ -28,6 +28,7 @@ export function createKagiWebSearchProvider() {
     id: PROVIDER_ID,
     label: "Kagi Search API",
     hint: "Privacy-focused search through Kagi's official Search API",
+    onboardingScopes: ["text-inference"] as const,
 
     credentialLabel: "Kagi API key",
     envVars: ["KAGI_API_KEY"],
