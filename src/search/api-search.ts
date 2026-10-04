@@ -49,6 +49,19 @@ function errorMessage(body: unknown): string | undefined {
   return text(first?.message) ?? text(first?.code);
 }
 
+function isTimeout(error: unknown): error is Error {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+function timeoutResult(error: Error, timeoutMs: number): KagiApiSearchResult {
+  return {
+    ok: false,
+    error: `Kagi Search API request timed out after ${timeoutMs} ms.`,
+    errorCode: "timeout",
+    detail: error.message,
+  };
+}
+
 export async function apiSearch(
   options: KagiApiSearchOptions,
 ): Promise<KagiApiSearchResult> {
@@ -71,14 +84,7 @@ export async function apiSearch(
       signal: AbortSignal.timeout(options.timeoutMs),
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      return {
-        ok: false,
-        error: `Kagi Search API request timed out after ${options.timeoutMs} ms.`,
-        errorCode: "timeout",
-        detail: error.message,
-      };
-    }
+    if (isTimeout(error)) return timeoutResult(error, options.timeoutMs);
     return {
       ok: false,
       error: "Kagi Search API request failed.",
@@ -91,6 +97,8 @@ export async function apiSearch(
   try {
     bodyText = await response.text();
   } catch (error) {
+    // The timeout signal also covers reading the body after headers arrive.
+    if (isTimeout(error)) return timeoutResult(error, options.timeoutMs);
     return {
       ok: false,
       error: "Kagi Search API response could not be read.",

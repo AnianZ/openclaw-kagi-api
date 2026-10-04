@@ -226,6 +226,29 @@ describe("apiSearch", () => {
     });
   });
 
+  it("reports a timeout while reading the response body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        const body = new ReadableStream({
+          start(controller) {
+            signal.addEventListener("abort", () =>
+              controller.error(signal.reason),
+            );
+          },
+        });
+        return new Response(body, { status: 200 });
+      }),
+    );
+
+    await expect(apiSearch({ ...options, timeoutMs: 20 })).resolves.toMatchObject({
+      ok: false,
+      errorCode: "timeout",
+      error: "Kagi Search API request timed out after 20 ms.",
+    });
+  });
+
   it("returns a controlled error when fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
