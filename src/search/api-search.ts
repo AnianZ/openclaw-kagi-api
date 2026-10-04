@@ -30,11 +30,23 @@ function text(value: unknown): string | undefined {
     : undefined;
 }
 
+// Status meanings follow Kagi's v1 OpenAPI spec: 403 is an IP allowlist
+// rejection, not a bad key, and 429 also covers exhausted usage limits.
 function errorCodeForStatus(status: number): string {
-  if (status === 401 || status === 403) return "invalid_api_key";
+  if (status === 400) return "invalid_request";
+  if (status === 401) return "invalid_api_key";
+  if (status === 403) return "ip_not_authorized";
   if (status === 402) return "payment_required";
   if (status === 429) return "rate_limited";
   return "api_error";
+}
+
+// Kagi's error envelope is `{ meta, error: [{ code, url, message? }] }`, and
+// `message` may be null, so fall back to the namespaced code.
+function errorMessage(body: unknown): string | undefined {
+  const errors = asRecord(body)?.error;
+  const first = asRecord(Array.isArray(errors) ? errors[0] : undefined);
+  return text(first?.message) ?? text(first?.code);
 }
 
 export async function apiSearch(
@@ -59,6 +71,14 @@ export async function apiSearch(
       signal: AbortSignal.timeout(options.timeoutMs),
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return {
+        ok: false,
+        error: `Kagi Search API request timed out after ${options.timeoutMs} ms.`,
+        errorCode: "timeout",
+        detail: error.message,
+      };
+    }
     return {
       ok: false,
       error: "Kagi Search API request failed.",
@@ -80,30 +100,28 @@ export async function apiSearch(
   }
 
   let body: unknown;
+  let validJson = true;
   try {
     body = JSON.parse(bodyText);
   } catch {
+    validJson = false;
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: `Kagi Search API returned HTTP ${response.status}.`,
+      errorCode: errorCodeForStatus(response.status),
+      detail: errorMessage(body) ?? bodyText.slice(0, 300),
+    };
+  }
+
+  if (!validJson) {
     return {
       ok: false,
       error: `Kagi Search API returned HTTP ${response.status} with invalid JSON.`,
       errorCode: "invalid_response",
       detail: bodyText.slice(0, 300),
-    };
-  }
-
-  if (!response.ok) {
-    const record = asRecord(body);
-    const errors = Array.isArray(record?.error)
-      ? record.error
-      : Array.isArray(record?.errors)
-        ? record.errors
-        : [];
-    const firstError = asRecord(errors[0]);
-    return {
-      ok: false,
-      error: `Kagi Search API returned HTTP ${response.status}.`,
-      errorCode: errorCodeForStatus(response.status),
-      detail: text(firstError?.message) ?? bodyText.slice(0, 300),
     };
   }
 
@@ -124,12 +142,13 @@ export async function apiSearch(
 
     const url = text(item.url);
     if (!url) continue;
+    const published = text(item.time);
 
     results.push({
       title: text(item.title) ?? url,
       url,
       snippet: text(item.snippet) ?? "",
-      ...(text(item.time) ? { published: text(item.time) } : {}),
+      ...(published ? { published } : {}),
     });
     if (results.length >= options.count) break;
   }

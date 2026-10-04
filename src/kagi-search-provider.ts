@@ -79,13 +79,8 @@ export function createKagiWebSearchProvider() {
       execute: async (
         args: Record<string, unknown>,
       ): Promise<Record<string, unknown>> => {
+        // Throws ToolInputError on a missing or empty query.
         const query = readStringParam(args, "query", { required: true });
-        if (!query) {
-          return {
-            error: "missing_query",
-            message: "A search query is required.",
-          };
-        }
 
         const count = resolveSearchCount(
           readNumberParam(args, "count", { integer: true }),
@@ -97,8 +92,7 @@ export function createKagiWebSearchProvider() {
           resolveProviderWebSearchPluginConfig(ctx.config, PROVIDER_ID),
           { mirrorApiKeyToTopLevel: true },
         );
-        const timeoutMs =
-          (resolveSearchTimeoutSeconds(searchConfig) ?? 30) * 1000;
+        const timeoutMs = resolveSearchTimeoutSeconds(searchConfig) * 1000;
         const cacheTtlMs = resolveSearchCacheTtlMs(searchConfig);
         const apiKey =
           readConfiguredSecretString(
@@ -119,7 +113,7 @@ export function createKagiWebSearchProvider() {
           query,
           String(count),
         ]);
-        const cached = readCachedSearchPayload(cacheKey);
+        const cached = readCachedSearchPayload(cacheKey, cacheTtlMs);
         if (cached) return cached;
 
         const start = Date.now();

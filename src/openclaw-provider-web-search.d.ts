@@ -1,3 +1,6 @@
+// openclaw 2026.9.8 ships no type declarations for this subpath, so these
+// signatures are hand-written from dist/plugin-sdk/provider-web-search.js.
+// test/sdk-contract.test.ts checks they still exist at runtime.
 declare module "openclaw/plugin-sdk/provider-web-search" {
   export function getScopedCredentialValue(
     config: unknown,
@@ -27,20 +30,19 @@ declare module "openclaw/plugin-sdk/provider-web-search" {
   export function buildSearchCacheKey(parts: string[]): string;
   export function readCachedSearchPayload(
     key: string,
-  ): Record<string, unknown> | null;
+    ttlMs?: number,
+  ): (Record<string, unknown> & { cached: true }) | undefined;
   export function writeCachedSearchPayload(
     key: string,
     payload: unknown,
-    ttlMs: number | undefined,
+    ttlMs: number,
   ): void;
   export function resolveSearchCount(
     requested: number | undefined,
     fallback: number,
   ): number;
-  export function resolveSearchTimeoutSeconds(
-    config: unknown,
-  ): number | undefined;
-  export function resolveSearchCacheTtlMs(config: unknown): number | undefined;
+  export function resolveSearchTimeoutSeconds(config: unknown): number;
+  export function resolveSearchCacheTtlMs(config: unknown): number;
   export function resolveSiteName(url: string): string;
   export function readConfiguredSecretString(
     value: unknown,
@@ -50,7 +52,12 @@ declare module "openclaw/plugin-sdk/provider-web-search" {
   export function readStringParam(
     args: Record<string, unknown>,
     key: string,
-    options?: { required?: boolean },
+    options: { required: true; trim?: boolean; label?: string },
+  ): string;
+  export function readStringParam(
+    args: Record<string, unknown>,
+    key: string,
+    options?: { required?: boolean; trim?: boolean; label?: string },
   ): string | undefined;
   export function readNumberParam(
     args: Record<string, unknown>,
@@ -60,5 +67,6 @@ declare module "openclaw/plugin-sdk/provider-web-search" {
   export function enablePluginInConfig(
     config: unknown,
     providerId: string,
-  ): { config: any };
+    options?: Record<string, unknown>,
+  ): { config: any; enabled: boolean; reason?: string };
 }

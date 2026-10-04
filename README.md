@@ -65,7 +65,8 @@ Then run a web search through your OpenClaw agent.
 
 ## Development
 
-Requires Node.js 24.16 or newer.
+Requires Node.js 24.16+ (24.x) or 26.1+, matching OpenClaw's own engine range.
+`npm pack` and `npm publish` run the build automatically through `prepack`.
 
 ```bash
 npm install

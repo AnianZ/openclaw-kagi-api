@@ -80,5 +80,44 @@ describe("Kagi web-search provider", () => {
     });
     expect(result.results[0].url).toBe("https://openclaw.ai/");
   });
-});
 
+  it("rejects a missing query with a tool input error", async () => {
+    const tool = createKagiWebSearchProvider().createTool({
+      searchConfig: {},
+      config: {},
+    });
+
+    await expect(tool.execute({})).rejects.toThrow("query required");
+    await expect(tool.execute({ query: "  " })).rejects.toThrow(
+      "query required",
+    );
+  });
+
+  it("serves repeat searches from cache and marks them cached", async () => {
+    process.env.KAGI_API_KEY = "environment-key";
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              search: [{ title: "Cached", url: "https://example.com/" }],
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const tool = createKagiWebSearchProvider().createTool({
+      searchConfig: { cacheTtlMinutes: 5 },
+      config: {},
+    });
+    const query = `cache-test-${Date.now()}`;
+
+    const first = await tool.execute({ query, count: 1 });
+    const second = await tool.execute({ query, count: 1 });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(first).not.toHaveProperty("cached");
+    expect(second).toMatchObject({ cached: true, query });
+  });
+});
