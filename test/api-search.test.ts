@@ -106,8 +106,9 @@ describe("apiSearch", () => {
   });
 
   it.each([
+    [400, "invalid_request"],
     [401, "invalid_api_key"],
-    [403, "invalid_api_key"],
+    [403, "ip_not_authorized"],
     [402, "payment_required"],
     [429, "rate_limited"],
     [500, "api_error"],
@@ -129,16 +130,85 @@ describe("apiSearch", () => {
     });
   });
 
-  it("handles invalid JSON", async () => {
+  it("handles invalid JSON on a successful response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("not json", { status: 502 })),
+      vi.fn().mockResolvedValue(new Response("not json", { status: 200 })),
     );
 
     await expect(apiSearch(options)).resolves.toMatchObject({
       ok: false,
       errorCode: "invalid_response",
       detail: "not json",
+    });
+  });
+
+  it.each([
+    [429, "Too Many Requests", "rate_limited"],
+    [401, "<html>Unauthorized</html>", "invalid_api_key"],
+    [502, "Bad Gateway", "api_error"],
+  ])(
+    "maps a non-JSON HTTP %i body by status",
+    async (status, body, errorCode) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(body, { status })),
+      );
+
+      await expect(apiSearch(options)).resolves.toMatchObject({
+        ok: false,
+        errorCode,
+        detail: body,
+      });
+    },
+  );
+
+  it.each([
+    [
+      "the message",
+      { code: "auth.invalid_token", url: "", message: "Token is invalid" },
+      "Token is invalid",
+    ],
+    [
+      "the code when message is null",
+      { code: "auth.invalid_token", url: "", message: null },
+      "auth.invalid_token",
+    ],
+  ])("uses %s from Kagi's error envelope", async (_label, error, detail) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ meta: { trace: "t" }, data: null, error: [error] }),
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await expect(apiSearch(options)).resolves.toMatchObject({
+      ok: false,
+      errorCode: "invalid_api_key",
+      detail,
+    });
+  });
+
+  it("reports timeouts separately from other fetch failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException(
+            "The operation was aborted due to timeout",
+            "TimeoutError",
+          ),
+        ),
+    );
+
+    await expect(apiSearch(options)).resolves.toMatchObject({
+      ok: false,
+      errorCode: "timeout",
+      error: "Kagi Search API request timed out after 5000 ms.",
     });
   });
 
@@ -153,6 +223,29 @@ describe("apiSearch", () => {
     await expect(apiSearch(options)).resolves.toMatchObject({
       ok: false,
       errorCode: "invalid_response",
+    });
+  });
+
+  it("reports a timeout while reading the response body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        const body = new ReadableStream({
+          start(controller) {
+            signal.addEventListener("abort", () =>
+              controller.error(signal.reason),
+            );
+          },
+        });
+        return new Response(body, { status: 200 });
+      }),
+    );
+
+    await expect(apiSearch({ ...options, timeoutMs: 20 })).resolves.toMatchObject({
+      ok: false,
+      errorCode: "timeout",
+      error: "Kagi Search API request timed out after 20 ms.",
     });
   });
 
